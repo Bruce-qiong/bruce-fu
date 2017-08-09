@@ -1,0 +1,104 @@
+#!/bin/bash
+# chkconfig: 2345 32 62  ##取值来源详见2、开机启动顺序取参
+# description: Activates/nginx server \
+###########################################
+# this script function is :
+# check_mysql_slave_replication_status
+# USER        YYYY-MM-DD - ACTION
+# bruce fu      20015-02-16 - Created
+# mail   270064522@qq.com
+############################################
+
+[ -f /etc/init.d/functions ] && . /etc/init.d/functions
+pidfile=/application/nginx/logs/nginx.pid
+start_nginx() {
+  if [ -f $pidfile ];then
+        echo "nginx is running"
+  else
+        /application/nginx/sbin/nginx &>/dev/null
+        action "nginx is started" /bin/true
+  fi
+ 
+}
+
+stop_nginx() {
+  if [ -f $pidfile ];then
+        /application/nginx/sbin/nginx -s stop &>/dev/null
+        action "nginx is stopped" /bin/true
+  else
+        action "nginx is stopped" /bin/false
+  fi
+}
+
+reload_nginx() {
+  if [ -f $pidfile ];then
+        /application/nginx/sbin/nginx -s reload &>/dev/null
+        action "nginx is reload" /bin/true
+  else
+        echo "can't open $pidfile,no such file or config" /bin/false
+  fi
+}
+
+case $1 in
+        start)
+                start_nginx
+                RETVAL=$?
+                ;;
+        stop)
+                stop_nginx
+                RETVAL=$?
+                ;;
+        restart)
+                stop_nginx
+                sleep 3
+                start_nginx
+                RETVAL=$?
+                ;;
+        reload)
+                reload_nginx
+                RETVAL=$?
+                ;;
+                *)
+                echo "USAGE:$0 {start|stop|reload|restart}"
+                exit 1
+esac
+exit $RETVAL
+
+2、开机启动顺序取参
+
+ 先查看已有的系统服务取参的开机自启动参数值
+
+ chkconfig: 2345 10 90 10和90的来历
+
+[root@web01 logs]# head -10 /etc/init.d/network 
+#! /bin/bash
+#
+# network       Bring up/down networking
+#
+# chkconfig: 2345 10 90
+# description: Activates/Deactivates all network interfaces configured to \
+#              start at boot time.
+#
+### BEGIN INIT INFO
+ 通过rc.d文件进行查找
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep 30
+lrwxrwxrwx. 1 root root 17 Mar  5 02:35 K30postfix -> ../init.d/postfix   #数字30表示有程序postfix占用
+
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep 31                 ##数字31也无程序占用
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep nginx
+lrwxrwxrwx  1 root root 15 Aug  8 21:32 S32nginx -> ../init.d/nginx
+
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep 60
+lrwxrwxrwx  1 root root 13 Mar  5 18:16 K60nfs -> ../init.d/nfs   ##启动程序数字60有程序占用
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep 61
+lrwxrwxrwx. 1 root root 18 Mar  5 02:35 K61nfs-rdma -> ../init.d/nfs-rdma
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep 62                 ##启动顺序数字62无程序占用
+ 验证脚本停止顺序数字是否是该程序软链接
+[root@web01 logs]# chkconfig  nginx off
+
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep nginx
+lrwxrwxrwx  1 root root 15 Aug  8 21:32 K62nginx -> ../init.d/nginx
+ 验证脚本启动顺序数字是否是该程序软链接
+[root@web01 logs]# chkconfig  nginx on
+[root@web01 logs]# ll /etc/rc.d/rc3.d/ |grep nginx
+lrwxrwxrwx  1 root root 15 Aug  8 21:32 S32nginx -> ../init.d/nginx
